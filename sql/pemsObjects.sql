@@ -1702,8 +1702,8 @@ SELECT
     ,'hour' AS [temporal_resolution]
     ,YEAR([timestamp]) AS [year]
     ,[station]
-    ,COUNT(*) AS [n]
-    ,CONVERT(DECIMAL(4,1), ROUND(100.0 * COUNT(*) / (365 * 24), 1)) AS [pct]
+    ,COUNT([number_of_days]) AS [n]
+    ,CONVERT(DECIMAL(4,1), ROUND(100.0 * COUNT([number_of_days]) / (365 * 24), 1)) AS [pct]
 FROM
     [pems].[station_aadt]
 GROUP BY
@@ -1784,6 +1784,9 @@ summary:   >
     number of days in the raw data-set used to calculate traffic flow within
     the given year, station, and time resolution.
 
+    Weekends are removed from the aggregation but one must trust CalTrans that
+    holidays have been appropriately accounted for in these monthly estimates.
+
 revisions:
     - None
 **/
@@ -1808,7 +1811,7 @@ BEGIN
         ON
             [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
         WHERE
-            CONVERT(date, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove all holidays, Actual - Observed - Shoulder
+            [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
         GROUP BY
             YEAR([timestamp])
             ,[station]
