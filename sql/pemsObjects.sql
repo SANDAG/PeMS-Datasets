@@ -1775,17 +1775,22 @@ summary:   >
         District: 11
         SQL table: [pems].[station_aadt]
 
-    Calculates the average traffic flow within each year of available data at
-    a user-specified time resolution. Note the data operates at the hour
-    resolution so aggregation can only be done at the hour level or above.
+    Calculates the average traffic flow within each year and month of
+    available data at a user-specified time resolution. Note the data operates
+    at the hour resolution so aggregation can only be done at the hour level
+    or above.
 
     Provides the average traffic flow weighted by the number of days in the raw
-    data-set used to calculate the traffic flow. Also provided are the total
-    number of days in the raw data-set used to calculate traffic flow within
-    the given year, station, and time resolution.
+    dataset used to calculate the traffic flow. Also provided are the total
+    number of days in the raw dataset used to calculate traffic flow within
+    the given year, month, day, station, and time resolution.
 
     Weekends are removed from the aggregation but one must trust CalTrans that
     holidays have been appropriately accounted for in these monthly estimates.
+
+    The result set can be further filtered or aggregated across year and month
+    making sure to weight by the number of observations [n] using the formula:
+        [mahw] = SUM([mahw] * [n]) / SUM([n])
 
 revisions:
     - None
@@ -1798,24 +1803,26 @@ BEGIN
     BEGIN
 	    -- build dynamic SQL string
 	    DECLARE @sql nvarchar(max) = '
-        SELECT
-            YEAR([timestamp]) AS [year]
-            ,[station]
-            ,[time_min60_xref].' + @time_column + '
-            ,SUM([mahw] * [number_of_days]) / SUM([number_of_days]) AS [mahw]  -- average traffic flow weighted by number of days used in computing each [mahw]
-            ,SUM([number_of_days]) AS [n]  -- total number of days used in computing [mahw] values that make up the average traffic flow
-        FROM
-            [pems].[station_aadt]
-        INNER JOIN
-            [pems].[time_min60_xref]
-        ON
-            [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
-        WHERE
-            [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
-        GROUP BY
-            YEAR([timestamp])
-            ,[station]
-            ,[time_min60_xref].' + @time_column
+            SELECT
+                DATENAME(YEAR, [timestamp]) AS [year]
+                ,DATENAME(MONTH, [timestamp]) AS [month]
+                ,[station]
+                ,[time_min60_xref].' + @time_column + '
+                ,SUM([mahw] * [number_of_days]) / SUM([number_of_days]) AS [mahw]  -- average traffic flow weighted by number of days used in computing each [mahw]
+                ,SUM([number_of_days]) AS [n]  -- total number of days used in computing [mahw] values that make up the average traffic flow
+            FROM
+                [pems].[station_aadt]
+            INNER JOIN
+                [pems].[time_min60_xref]
+            ON
+                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
+            WHERE
+                [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
+            GROUP BY
+                DATENAME(YEAR, [timestamp])
+                ,DATENAME(MONTH, [timestamp])
+                ,[station]
+                ,[time_min60_xref].' + @time_column
 
         -- execute dynamic SQL string
 	    EXECUTE (@sql)
