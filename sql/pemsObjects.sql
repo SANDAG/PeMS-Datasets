@@ -1757,7 +1757,63 @@ GROUP BY
 GO
 
 
--- create stored procedure to agregate Station AADT Month Hour data-set ------
+-- create table valued function to aggregate Station Day data-set ------------
+DROP FUNCTION IF EXISTS [pems].[fn_agg_station_day]
+GO
+
+CREATE FUNCTION [pems].[fn_agg_station_day] ()
+RETURNS TABLE
+AS
+/**
+summary:   >
+    Aggregates the PeMS Data Clearinghouse data-set:
+        Type: Station Day
+        District: 11
+        SQL table: [pems].[station_day]
+
+    Calculates the average daily traffic flow within each year and month of
+    available data.
+
+    Provides the average traffic flow weighted by the number of samples in the
+    raw dataset used to calculate the traffic flow for each day. Also provided
+    are the total number of days and total number of samples across all lanes
+    for each day in the raw dataset used to calculate traffic flow within
+    the given year, month, and station
+
+    Weekends, holidays, and imputed values are removed from the aggregation.
+
+    The result set can be further filtered or aggregated across year and month
+    making sure to weight by the number of observations [n]  or the number of
+    [samples] using the formulas:
+        [daily_flow] = SUM([daily_flow] * [n]) / SUM([n])
+        [daily_flow] = SUM([daily_flow] * [samples]) / SUM([samples])
+
+revisions:
+    - None
+**/
+RETURN
+SELECT
+    DATENAME(YEAR, [timestamp]) AS [year]
+    ,DATENAME(MONTH, [timestamp]) AS [month]
+    ,[station]
+    ,SUM(1.0 * ISNULL([total_flow], 0) * [samples]) / SUM([samples]) AS [daily_flow]  -- average traffic flow weighted by number of samples used in computing each [total_flow]
+    ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of days used in computing [total_flow] values that make up the average traffic flow
+    ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all days used to compute average traffic flow
+FROM
+    [pems].[station_day]
+WHERE
+    DATENAME(WEEKDAY, [timestamp]) NOT IN ('Saturday', 'Sunday')  -- remove weekends from the aggregation
+    AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+    AND [samples] > 0  -- do not use imputed values
+    AND [total_flow] IS NOT NULL  -- do not count records where metric was not measured
+GROUP BY
+    DATENAME(YEAR, [timestamp])
+    ,DATENAME(MONTH, [timestamp])
+    ,[station]
+GO
+
+
+-- create stored procedure to aggregate Station AADT Month Hour data-set ------
 DROP PROCEDURE IF EXISTS [pems].[sp_agg_station_aadt]
 GO
 
