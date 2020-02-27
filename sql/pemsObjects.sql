@@ -1890,3 +1890,179 @@ BEGIN
 
 END
 GO
+
+
+
+
+-- create table valued function to aggregate Station 5 Minute data-set -------
+DROP PROCEDURE  IF EXISTS [pems].[sp_agg_station_five_minute]
+GO
+
+CREATE PROCEDURE [pems].[sp_agg_station_five_minute]
+    @metric_column nvarchar(20),  -- column in [pems].[station_five_minute] to
+    -- calculate average of, allows only [total_flow] and [average_speed]
+    @time_column nvarchar(max),  -- column in [pems].[time_min5_xref]
+    -- table used to aggregate station hour data to user-specified
+    -- temporal resolution
+    @year_filter integer -- year of data to calculate metric for
+AS
+/**
+summary:   >
+    Aggregates the PeMS Data Clearinghouse data-set:
+        Type: Station 5 Minute
+        District: 11
+        SQL table: [pems].[station_five_minute]
+    Calculates the average traffic flow or speed within each month of
+    available data for a user-specified year at a user-specified time
+    resolution. Note the data operates at the five minute resolution so
+    aggregation can only be done at the five minute level or above.
+
+    Provides the average traffic flow or speed weighted by the number of
+    samples in the raw dataset used to calculate the metric for each
+    user-specified time resolution period.
+
+    Also provided are the total number of records and total number of samples
+    across all lanes for each day in the raw dataset used to calculate the
+    metric within the given year, month, station, and user-specified time
+    resolution period.
+
+    Weekends, holidays, and imputed values are removed from the aggregation.
+    The result set can be further filtered or aggregated across month
+    and user-specified time resolution periods making sure to weight by the
+    number of observations [n] or the number of [samples] using the formulas:
+        [metric] = SUM([metric] * [n]) / SUM([n])
+        [metric] = SUM([metric] * [samples]) / SUM([samples])
+revisions:
+    - None
+**/
+BEGIN
+    IF (@metric_column NOT IN ('total_flow', 'average_speed'))
+    BEGIN
+        RAISERROR ('Only total_flow and average_speed are allowed metrics from the [pems].[station_five_minute] table.', 16, 1, @metric_column)
+    END
+    ELSE IF NOT EXISTS(SELECT [COLUMN_NAME] FROM INFORMATION_SCHEMA.COLUMNS WHERE [TABLE_SCHEMA] = 'pems' AND [TABLE_NAME] = 'time_min5_xref' AND [COLUMN_NAME] = @time_column)
+    BEGIN
+        RAISERROR ('The column %s does not exist in the [pems].[time_min5_xref] table.', 16, 1, @time_column)
+    END
+    ELSE
+    BEGIN
+        -- build dynamic SQL string
+	    DECLARE @sql nvarchar(max) = '
+        SELECT
+            ' + CONVERT(nvarchar, @year_filter) + ' AS [year]
+            ,DATENAME(MONTH, [timestamp]) AS [month]
+            ,[station]
+            ,[time_min5_xref].' + @time_column + '
+            ,SUM(1.0 * ISNULL(' + @metric_column + ', 0) * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+            ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
+            ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
+        FROM
+            [pems].[station_five_minute]
+        INNER JOIN
+            [pems].[time_min5_xref]
+        ON
+            CONVERT(TIME, [station_five_minute].[timestamp]) = [time_min5_xref].[min5_period_start]
+        WHERE
+            DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
+            AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+            AND [samples] > 0  -- do not use imputed values
+            AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
+            AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
+        GROUP BY
+            DATENAME(MONTH, [timestamp])
+            ,[station]
+            ,[time_min5_xref].' + @time_column
+
+        -- execute dynamic SQL string
+	    EXECUTE (@sql)
+    END
+END
+GO
+
+
+
+
+-- create table valued function to aggregate Station Hour data-set -----------
+DROP PROCEDURE  IF EXISTS [pems].[sp_agg_station_hour]
+GO
+
+CREATE PROCEDURE [pems].[sp_agg_station_hour]
+    @metric_column nvarchar(20),  -- column in [pems].[station_hour] to
+    -- calculate average of, allows only [total_flow] and [average_speed]
+    @time_column nvarchar(max),  -- column in [pems].[time_min60_xref]
+    -- table used to aggregate station hour data to user-specified
+    -- temporal resolution
+    @year_filter integer -- year of data to calculate metric for
+AS
+/**
+summary:   >
+    Aggregates the PeMS Data Clearinghouse data-set:
+        Type: Station Hour
+        District: 11
+        SQL table: [pems].[station_hour]
+    Calculates the average traffic flow or speed within each month of
+    available data for a user-specified year at a user-specified time
+    resolution. Note the data operates at the hour resolution so aggregation
+    can only be done at the hour level or above.
+
+    Provides the average traffic flow or speed weighted by the number of
+    samples in the raw dataset used to calculate the metric for each
+    user-specified time resolution period.
+
+    Also provided are the total number of records and total number of samples
+    across all lanes for each day in the raw dataset used to calculate the
+    metric within the given year, month, station, and user-specified time
+    resolution period.
+
+    Weekends, holidays, and imputed values are removed from the aggregation.
+    The result set can be further filtered or aggregated across month
+    and user-specified time resolution periods making sure to weight by the
+    number of observations [n] or the number of [samples] using the formulas:
+        [metric] = SUM([metric] * [n]) / SUM([n])
+        [metric] = SUM([metric] * [samples]) / SUM([samples])
+revisions:
+    - None
+**/
+BEGIN
+    IF (@metric_column NOT IN ('total_flow', 'average_speed'))
+    BEGIN
+        RAISERROR ('Only total_flow and average_speed are allowed metrics from the [pems].[station_hour] table.', 16, 1, @metric_column)
+    END
+    ELSE IF NOT EXISTS(SELECT [COLUMN_NAME] FROM INFORMATION_SCHEMA.COLUMNS WHERE [TABLE_SCHEMA] = 'pems' AND [TABLE_NAME] = 'time_min60_xref' AND [COLUMN_NAME] = @time_column)
+    BEGIN
+        RAISERROR ('The column %s does not exist in the [pems].[time_min60_xref] table.', 16, 1, @time_column)
+    END
+    ELSE
+    BEGIN
+        -- build dynamic SQL string
+	    DECLARE @sql nvarchar(max) = '
+        SELECT
+            ' + CONVERT(nvarchar, @year_filter) + ' AS [year]
+            ,DATENAME(MONTH, [timestamp]) AS [month]
+            ,[station]
+            ,[time_min60_xref].' + @time_column + '
+            ,SUM(1.0 * ISNULL(' + @metric_column + ', 0) * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+            ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
+            ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
+        FROM
+            [pems].[station_hour]
+        INNER JOIN
+            [pems].[time_min60_xref]
+        ON
+            DATEPART(HOUR, [station_hour].[timestamp]) + 1 = [time_min60_xref].[min60]
+        WHERE
+            DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
+            AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+            AND [samples] > 0  -- do not use imputed values
+            AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
+            AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
+        GROUP BY
+            DATENAME(MONTH, [timestamp])
+            ,[station]
+            ,[time_min60_xref].' + @time_column
+
+        -- execute dynamic SQL string
+	    EXECUTE (@sql)
+    END
+END
+GO
