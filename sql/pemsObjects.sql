@@ -1757,6 +1757,8 @@ GROUP BY
 GO
 
 
+
+
 -- create table valued function to aggregate Station Day data-set ------------
 DROP FUNCTION IF EXISTS [pems].[fn_agg_station_day]
 GO
@@ -1783,34 +1785,65 @@ summary:   >
     Weekends, holidays, and imputed values are removed from the aggregation.
 
     The result set can be further filtered or aggregated across year and month
-    making sure to weight by the number of observations [n]  or the number of
-    [samples] using the formulas:
-        [daily_flow] = SUM([daily_flow] * [n]) / SUM([n])
-        [daily_flow] = SUM([daily_flow] * [samples]) / SUM([samples])
+    making sure to weight the mean by the number of observations [n] or the
+    number of [samples] using the formulas:
+        [meanN] = SUM([metric] * [n]) / SUM([n])
+        [meanSamples] = SUM([metric] * [samples]) / SUM([samples])
+    Similarly, the standard deviation can also be calculated using the
+    formulas and above mean calculations:
+        [stdDevN] = SQRT(SUM([metric]^2 * [n]) / SUM([n]) - [meanN]^2)
+        [stdDevSamples] = SQRT(SUM([metric]^2 * [samples]) / SUM([samples]) - [meanSamples]^2)
 
 revisions:
     - None
 **/
 RETURN
+with [meanTbl] AS (
+    SELECT
+        DATENAME(YEAR, [timestamp]) AS [year]
+        ,DATENAME(MONTH, [timestamp]) AS [month]
+        ,[station]
+        ,SUM(1.0 * ISNULL([total_flow], 0) * [samples]) / SUM([samples]) AS [mean]  -- average traffic flow weighted by number of samples used in computing each [total_flow]
+    FROM
+        [pems].[station_day]
+    WHERE
+        DATENAME(WEEKDAY, [timestamp]) NOT IN ('Saturday', 'Sunday')  -- remove weekends from the aggregation
+        AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+        AND [samples] > 0  -- do not use imputed values
+        AND [total_flow] IS NOT NULL  -- do not count records where metric was not measured
+    GROUP BY
+        DATENAME(YEAR, [timestamp])
+        ,DATENAME(MONTH, [timestamp])
+        ,[station])
 SELECT
-    DATENAME(YEAR, [timestamp]) AS [year]
-    ,DATENAME(MONTH, [timestamp]) AS [month]
-    ,[station]
-    ,SUM(1.0 * ISNULL([total_flow], 0) * [samples]) / SUM([samples]) AS [daily_flow]  -- average traffic flow weighted by number of samples used in computing each [total_flow]
+    [meanTbl].[year]
+    ,[meanTbl].[month]
+    ,[meanTbl].[station]
+    ,[meanTbl].[mean] AS [metric]  -- sum( x * p(x) ) = u
+    ,SQRT(SUM(POWER(1.0 * ISNULL([total_flow], 0), 2) * [samples]) / SUM([samples]) - POWER(1.0 * [meanTbl].[mean], 2))  AS [std_dev]  -- sum( x^2 * p(x) ) - u^2 = std_dev
     ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of days used in computing [total_flow] values that make up the average traffic flow
-    ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all days used to compute average traffic flow
+    ,SUM([samples]) AS [samples]  -- total number of [samples] received for all lanes across all days used to compute average traffic flow
 FROM
     [pems].[station_day]
+INNER JOIN
+    [meanTbl]
+ON
+    DATENAME(YEAR, [station_day].[timestamp]) = [meanTbl].[year]
+    AND DATENAME(MONTH, [station_day].[timestamp]) = [meanTbl].[month]
+    AND [station_day].[station] = [meanTbl].[station]
 WHERE
     DATENAME(WEEKDAY, [timestamp]) NOT IN ('Saturday', 'Sunday')  -- remove weekends from the aggregation
     AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
     AND [samples] > 0  -- do not use imputed values
     AND [total_flow] IS NOT NULL  -- do not count records where metric was not measured
 GROUP BY
-    DATENAME(YEAR, [timestamp])
-    ,DATENAME(MONTH, [timestamp])
-    ,[station]
+    [meanTbl].[year]
+    ,[meanTbl].[month]
+    ,[meanTbl].[station]
+    ,[meanTbl].[mean]
 GO
+
+
 
 
 -- create stored procedure to aggregate Station AADT Month Hour data-set ------
