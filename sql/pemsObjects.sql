@@ -1795,7 +1795,7 @@ summary:   >
         [stdDevSamples] = SQRT(SUM([metric]^2 * [samples]) / SUM([samples]) - [meanSamples]^2)
 
 revisions:
-    - None
+    - Gregor Schroeder; 3/11/2020; added standard deviation calculation
 **/
 RETURN
 with [meanTbl] AS (
@@ -1803,7 +1803,7 @@ with [meanTbl] AS (
         DATENAME(YEAR, [timestamp]) AS [year]
         ,DATENAME(MONTH, [timestamp]) AS [month]
         ,[station]
-        ,SUM(1.0 * ISNULL([total_flow], 0) * [samples]) / SUM([samples]) AS [mean]  -- average traffic flow weighted by number of samples used in computing each [total_flow]
+        ,SUM(1.0 * [total_flow] * [samples]) / SUM([samples]) AS [mean]  -- average traffic flow weighted by number of samples used in computing each [total_flow]
     FROM
         [pems].[station_day]
     WHERE
@@ -1820,7 +1820,7 @@ SELECT
     ,[meanTbl].[month]
     ,[meanTbl].[station]
     ,[meanTbl].[mean] AS [metric]  -- sum( x * p(x) ) = u
-    ,SQRT(SUM(POWER(1.0 * ISNULL([total_flow], 0), 2) * [samples]) / SUM([samples]) - POWER(1.0 * [meanTbl].[mean], 2))  AS [std_dev]  -- sum( x^2 * p(x) ) - u^2 = std_dev
+    ,SQRT(SUM(POWER(1.0 * [total_flow], 2) * [samples]) / SUM([samples]) - POWER(1.0 * [meanTbl].[mean], 2))  AS [std_dev]  -- sum( x^2 * p(x) ) - u^2 = std_dev
     ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of days used in computing [total_flow] values that make up the average traffic flow
     ,SUM([samples]) AS [samples]  -- total number of [samples] received for all lanes across all days used to compute average traffic flow
 FROM
@@ -1878,11 +1878,15 @@ summary:   >
     holidays have been appropriately accounted for in these monthly estimates.
 
     The result set can be further filtered or aggregated across year and month
-    making sure to weight by the number of observations [n] using the formula:
-        [mahw] = SUM([mahw] * [n]) / SUM([n])
+    making sure to weight the mean by the number of observations [n] using the
+    formula:
+        [mean] = SUM([mahw] * [n]) / SUM([n])
+    Similarly, the standard deviation can also be calculated using the
+    formulas and above mean calculations:
+        [std_dev] = SQRT(SUM([mahw]^2 * [n]) / SUM([n]) - [mean]^2)
 
 revisions:
-    - None
+    - Gregor Schroeder; 3/11/2020; added standard deviation calculation
 **/
 
 BEGIN
@@ -1892,26 +1896,63 @@ BEGIN
     BEGIN
 	    -- build dynamic SQL string
 	    DECLARE @sql nvarchar(max) = '
+            with [meanTbl] AS (
+                SELECT
+                    DATENAME(YEAR, [timestamp]) AS [year]
+                    ,DATENAME(MONTH, [timestamp]) AS [month]
+                    ,[station]
+                    ,[time_min60_xref].' + @time_column + '
+                    ,SUM(CONVERT(float, [mahw]) * [number_of_days]) / SUM([number_of_days]) AS [mean]  -- average traffic flow weighted by number of days used in computing each [mahw]
+                FROM
+                    [pems].[station_aadt]
+                INNER JOIN
+                    [pems].[time_min60_xref]
+                ON
+                    [station_aadt].[hour_of_day] + 1 = [time_min60_xref].' + @time_column + '
+                WHERE
+                    [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
+                    AND [number_of_days] > 0  -- only use records with obsevations
+                    AND [mahw] IS NOT NULL  -- remove records where metric is unobserved
+                GROUP BY
+                    DATENAME(YEAR, [timestamp])
+                    ,DATENAME(MONTH, [timestamp])
+                    ,[station]
+                    ,[time_min60_xref].' + @time_column + ')
             SELECT
-                DATENAME(YEAR, [timestamp]) AS [year]
-                ,DATENAME(MONTH, [timestamp]) AS [month]
-                ,[station]
-                ,[time_min60_xref].' + @time_column + '
-                ,SUM([mahw] * [number_of_days]) / SUM([number_of_days]) AS [mahw]  -- average traffic flow weighted by number of days used in computing each [mahw]
+                [meanTbl].[year]
+                ,[meanTbl].[month]
+                ,[meanTbl].[station]
+                ,[meanTbl].' + @time_column + '
+                ,[meanTbl].[mean] AS [mahw]  -- sum( x * p(x) ) = u
+                -- convert from decimal to float for increased precision
+                -- handle floating point representation issues by setting values < 0 to 0
+                ,CASE   WHEN SUM(POWER(CONVERT(float, [mahw]), 2) * [number_of_days]) / SUM([number_of_days]) - POWER([meanTbl].[mean], 2) < 0 THEN 0
+                        ELSE SUM(POWER(CONVERT(float, [mahw]), 2) * [number_of_days]) / SUM([number_of_days]) - POWER([meanTbl].[mean], 2)
+                        END AS [std_dev]  -- sum( x^2 * p(x) ) - u^2 = std_dev
                 ,SUM([number_of_days]) AS [n]  -- total number of days used in computing [mahw] values that make up the average traffic flow
             FROM
                 [pems].[station_aadt]
             INNER JOIN
                 [pems].[time_min60_xref]
             ON
-                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
+                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].' + @time_column + '
+            INNER JOIN
+                [meanTbl]
+            ON
+                DATENAME(YEAR, [timestamp]) = [meanTbl].[year]
+                AND DATENAME(MONTH, [timestamp]) = [meanTbl].[month]
+                AND [station_aadt].[station] = [meanTbl].[station]
+                AND [time_min60_xref].' + @time_column + ' = [meanTbl].' + @time_column + '
             WHERE
                 [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
+                AND [number_of_days] > 0  -- only use records with obsevations
+                AND [mahw] IS NOT NULL  -- remove records where metric is unobserved
             GROUP BY
-                DATENAME(YEAR, [timestamp])
-                ,DATENAME(MONTH, [timestamp])
-                ,[station]
-                ,[time_min60_xref].' + @time_column
+                [meanTbl].[year]
+                ,[meanTbl].[month]
+                ,[meanTbl].[station]
+                ,[meanTbl].' + @time_column + '
+                ,[meanTbl].[mean]'
 
         -- execute dynamic SQL string
 	    EXECUTE (@sql)
@@ -1986,7 +2027,7 @@ BEGIN
             ,DATENAME(MONTH, [timestamp]) AS [month]
             ,[station]
             ,[time_min5_xref].' + @time_column + '
-            ,SUM(1.0 * ISNULL(' + @metric_column + ', 0) * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+            ,SUM(1.0 * ' + @metric_column + ' * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
             ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
             ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
         FROM
@@ -2074,7 +2115,7 @@ BEGIN
             ,DATENAME(MONTH, [timestamp]) AS [month]
             ,[station]
             ,[time_min60_xref].' + @time_column + '
-            ,SUM(1.0 * ISNULL(' + @metric_column + ', 0) * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+            ,SUM(1.0 * ' + @metric_column + ' * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
             ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
             ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
         FROM
