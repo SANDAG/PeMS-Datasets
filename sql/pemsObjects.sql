@@ -1908,7 +1908,7 @@ BEGIN
                 INNER JOIN
                     [pems].[time_min60_xref]
                 ON
-                    [station_aadt].[hour_of_day] + 1 = [time_min60_xref].' + @time_column + '
+                    [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
                 WHERE
                     [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
                     AND [number_of_days] > 0  -- only use records with obsevations
@@ -1935,7 +1935,7 @@ BEGIN
             INNER JOIN
                 [pems].[time_min60_xref]
             ON
-                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].' + @time_column + '
+                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
             INNER JOIN
                 [meanTbl]
             ON
