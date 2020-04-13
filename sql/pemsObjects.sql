@@ -12,16 +12,18 @@ GO
 
 /*****************************************************************************/
 -- remove all PeMS objects
-DROP TABLE IF EXISTS [pems].[census_vclass_hour]
-DROP TABLE IF EXISTS [pems].[holiday]
-DROP TABLE IF EXISTS [pems].[station_aadt]
-DROP TABLE IF EXISTS [pems].[station_day]
-DROP TABLE IF EXISTS [pems].[station_five_minute]
-DROP TABLE IF EXISTS [pems].[station_hour]
-DROP TABLE IF EXISTS [pems].[time_min5_xref]
-DROP TABLE IF EXISTS [pems].[time_min60_xref]
-DROP SCHEMA IF EXISTS [pems]
-GO
+-- comment out for safety
+--DROP TABLE IF EXISTS [pems].[census_vclass_hour]
+--DROP TABLE IF EXISTS [pems].[holiday]
+--DROP TABLE IF EXISTS [pems].[station_aadt]
+--DROP TABLE IF EXISTS [pems].[station_day]
+--DROP TABLE IF EXISTS [pems].[station_five_minute]
+--DROP TABLE IF EXISTS [pems].[station_hour]
+--DROP TABLE IF EXISTS [pems].[station_metadata]
+--DROP TABLE IF EXISTS [pems].[time_min5_xref]
+--DROP TABLE IF EXISTS [pems].[time_min60_xref]
+--DROP SCHEMA IF EXISTS [pems]
+--GO
 
 
 
@@ -1295,6 +1297,34 @@ CREATE TABLE [pems].[station_hour] (
     [lane8_average_speed] decimal(4,1) NULL,
     INDEX [ccsi_pems_station_hour] CLUSTERED COLUMNSTORE,
     CONSTRAINT [ixuq_pems_station_hour] UNIQUE ([timestamp], [station])
+    )
+GO
+
+
+-- PeMS Clearinghouse data-set
+-- Type: Station Hour
+CREATE TABLE [pems].[station_metadata] (
+    [metadata_date] date NOT NULL,
+    [station] bigint NOT NULL,
+	[freeway] char(5) NOT NULL,
+	[direction] char(1) NOT NULL,
+	[district] char(2) NOT NULL,
+	[county] char(2) NOT NULL,
+	[city] char(5) NULL,
+	[state_postmile] char(10) NOT NULL,
+	[absolute_postmile] char(10) NULL,
+	[latitude] float NULL,
+	[longitude] float NULL,
+	[length] float NULL,
+	[type] char(2) NOT NULL,
+	[lanes] int NOT NULL,
+	[name] char(50) NULL,
+	[user_id_1] int NOT NULL,
+	[user_id_2] int NULL,
+	[user_id_3] int NULL,
+	[user_id_4] int NULL,
+	[shape] geometry NULL,
+    CONSTRAINT [ixuq_pems_station_metadata] UNIQUE ([metadata_date], [station])
     )
 GO
 

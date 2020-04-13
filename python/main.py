@@ -8,7 +8,7 @@ from zipfile import ZipFile
 # Kerberos authentication issue requires use of a SQL login
 # instead of Windows Authentication in the SANDAG environment
 # create account when loading then remove
-conn = pyodbc.connect("DRIVER={ODBC Driver 13 for SQL Server};"
+conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};"
                       "SERVER=;"
                       "DATABASE=;"
                       "UID=;"  # TODO: create SQL login see README
