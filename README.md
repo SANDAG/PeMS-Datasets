@@ -17,3 +17,6 @@ Create the Python interpreter from the provided environment.yml file located in 
 
 ## Summarizing PeMS data-sets
 Stored procedures within the database containing the PeMS data-sets provide yearly aggregations of the PeMS data-sets at the station level for user-specified time resolutions. For more information, refer to this GitHub's Wiki page for each PeMS data-set.
+
+## Matching PeMS stations to SANDAG highway network
+A Python micro-service is included in the project matching folder that matches a user-specified year of PeMS station metadata loaded into an internal SQL server instance with a user-specified SANDAG highway network e00 file. The Python script can be run outside of the project folder structure and includes a separate enviornment.yml file from the main project.
