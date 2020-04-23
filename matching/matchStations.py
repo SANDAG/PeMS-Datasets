@@ -158,7 +158,6 @@ resultDf = resultDf.append(missingStations, ignore_index=True)
 
 
 # write the result to a csv file
-resultDf["hwyCovId"] = resultDf["hwyCovId"].astype("int64")
 resultDf.to_csv("match.csv",
                 columns=["station", "hwyCovId"],
                 index=False)
