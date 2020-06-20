@@ -1911,12 +1911,11 @@ summary:   >
     making sure to weight the mean by the number of observations [n] using the
     formula:
         [mean] = SUM([mahw] * [n]) / SUM([n])
-    Similarly, the standard deviation can also be calculated using the
-    formulas and above mean calculations:
-        [std_dev] = SQRT(SUM([mahw]^2 * [n]) / SUM([n]) - [mean]^2)
 
 revisions:
-    - Gregor Schroeder; 3/11/2020; added standard deviation calculation
+	- Gregor Schroeder; 5/15/2020; added summation to user-input time periods
+		for each day/date of data prior to taking the mean
+		removed standard deviation calculation
 **/
 
 BEGIN
@@ -1926,63 +1925,47 @@ BEGIN
     BEGIN
 	    -- build dynamic SQL string
 	    DECLARE @sql nvarchar(max) = '
-            with [meanTbl] AS (
-                SELECT
-                    DATENAME(YEAR, [timestamp]) AS [year]
-                    ,DATENAME(MONTH, [timestamp]) AS [month]
-                    ,[station]
-                    ,[time_min60_xref].' + @time_column + '
-                    ,SUM(CONVERT(float, [mahw]) * [number_of_days]) / SUM([number_of_days]) AS [mean]  -- average traffic flow weighted by number of days used in computing each [mahw]
-                FROM
-                    [pems].[station_aadt]
-                INNER JOIN
-                    [pems].[time_min60_xref]
-                ON
-                    [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
-                WHERE
-                    [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
-                    AND [number_of_days] > 0  -- only use records with obsevations
-                    AND [mahw] IS NOT NULL  -- remove records where metric is unobserved
-                GROUP BY
-                    DATENAME(YEAR, [timestamp])
-                    ,DATENAME(MONTH, [timestamp])
-                    ,[station]
-                    ,[time_min60_xref].' + @time_column + ')
-            SELECT
-                [meanTbl].[year]
-                ,[meanTbl].[month]
-                ,[meanTbl].[station]
-                ,[meanTbl].' + @time_column + '
-                ,[meanTbl].[mean] AS [mahw]  -- sum( x * p(x) ) = u
-                -- convert from decimal to float for increased precision
-                -- handle floating point representation issues by setting values < 0 to 0
-                ,CASE   WHEN SUM(POWER(CONVERT(float, [mahw]), 2) * [number_of_days]) / SUM([number_of_days]) - POWER([meanTbl].[mean], 2) < 0 THEN 0
-                        ELSE SUM(POWER(CONVERT(float, [mahw]), 2) * [number_of_days]) / SUM([number_of_days]) - POWER([meanTbl].[mean], 2)
-                        END AS [std_dev]  -- sum( x^2 * p(x) ) - u^2 = std_dev
-                ,SUM([number_of_days]) AS [n]  -- total number of days used in computing [mahw] values that make up the average traffic flow
-            FROM
-                [pems].[station_aadt]
-            INNER JOIN
-                [pems].[time_min60_xref]
-            ON
-                [station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
-            INNER JOIN
-                [meanTbl]
-            ON
-                DATENAME(YEAR, [timestamp]) = [meanTbl].[year]
-                AND DATENAME(MONTH, [timestamp]) = [meanTbl].[month]
-                AND [station_aadt].[station] = [meanTbl].[station]
-                AND [time_min60_xref].' + @time_column + ' = [meanTbl].' + @time_column + '
-            WHERE
-                [day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
-                AND [number_of_days] > 0  -- only use records with obsevations
-                AND [mahw] IS NOT NULL  -- remove records where metric is unobserved
-            GROUP BY
-                [meanTbl].[year]
-                ,[meanTbl].[month]
-                ,[meanTbl].[station]
-                ,[meanTbl].' + @time_column + '
-                ,[meanTbl].[mean]'
+			with [tbl_day] AS (
+				SELECT
+					DATENAME(YEAR, [timestamp]) AS [year]
+					,DATEPART(MONTH, [timestamp]) AS [month_number]
+					,DATENAME(MONTH, [timestamp]) AS [month]
+					,[station]
+					,[time_min60_xref].' + @time_column + '
+					,SUM([mahw]) AS [mahw]  -- total average traffic flow
+					,SUM([number_of_days]) AS [number_of_days]  -- number of days used in computing each [mahw]
+				FROM
+					[pems].[station_aadt]
+				INNER JOIN
+					[pems].[time_min60_xref]
+				ON
+					[station_aadt].[hour_of_day] + 1 = [time_min60_xref].[min60]
+				WHERE
+					[day_number] NOT IN (0, 6)  -- remove weekends from the aggregation
+					AND [number_of_days] > 0  -- only use records with observations
+					AND [mahw] IS NOT NULL  -- remove records where metric is unobserved
+				GROUP BY
+					CONVERT(DATE, [timestamp])
+					,DATENAME(YEAR, [timestamp])
+					,DATEPART(MONTH, [timestamp])
+					,DATENAME(MONTH, [timestamp])
+					,[station]
+					,[time_min60_xref].' + @time_column + ')
+			SELECT
+				[year]
+				,[month]
+				,[station]
+				,' + @time_column + '
+				,SUM(CONVERT(float, [mahw]) * [number_of_days]) / SUM([number_of_days]) AS [mean]  -- average traffic flow weighted by number of days used in computing each [mahw]
+				,SUM([number_of_days]) AS [n]  -- total number of days used in computing [mahw] values that make up the average traffic flow
+			FROM
+				[tbl_day]
+			GROUP BY
+				[year]
+				,[month_number]
+				,[month]
+				,[station]
+				,' + @time_column
 
         -- execute dynamic SQL string
 	    EXECUTE (@sql)
@@ -2037,7 +2020,8 @@ summary:   >
         [metric] = SUM([metric] * [n]) / SUM([n])
         [metric] = SUM([metric] * [samples]) / SUM([samples])
 revisions:
-    - None
+	- Gregor Schroeder; 5/15/2020; added summation to user-input time periods
+		for each day/date of data prior to taking the mean
 **/
 BEGIN
     IF (@metric_column NOT IN ('total_flow', 'average_speed'))
@@ -2050,32 +2034,64 @@ BEGIN
     END
     ELSE
     BEGIN
-        -- build dynamic SQL string
-	    DECLARE @sql nvarchar(max) = '
-        SELECT
-            ' + CONVERT(nvarchar, @year_filter) + ' AS [year]
-            ,DATENAME(MONTH, [timestamp]) AS [month]
-            ,[station]
-            ,[time_min5_xref].' + @time_column + '
-            ,SUM(1.0 * ' + @metric_column + ' * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
-            ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
-            ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
-        FROM
-            [pems].[station_five_minute]
-        INNER JOIN
-            [pems].[time_min5_xref]
-        ON
-            CONVERT(TIME, [station_five_minute].[timestamp]) = [time_min5_xref].[min5_period_start]
-        WHERE
-            DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
-            AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
-            AND [samples] > 0  -- do not use imputed values
-            AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
-            AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
-        GROUP BY
-            DATENAME(MONTH, [timestamp])
-            ,[station]
-            ,[time_min5_xref].' + @time_column
+		-- build dynamic SQL string
+		DECLARE @sql nvarchar(max) = '
+		with [tbl_day] AS (
+			SELECT
+				CONVERT(DATE, [timestamp]) AS [date]
+				,DATEPART(MONTH, [timestamp]) AS [month_number]
+				,DATENAME(MONTH, [timestamp]) AS [month]
+				,[station]
+				,[time_min5_xref].' + @time_column + '
+				,SUM(' + @metric_column + ') AS [metric]  -- metric aggregated to time periods of interest within the day
+				,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records aggregated to time periods of interest within the day
+				,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records aggregated to time periods of interest within the day
+			FROM
+				[pems].[station_five_minute]
+			INNER JOIN
+				[pems].[time_min5_xref]
+			ON
+				CONVERT(TIME, [station_five_minute].[timestamp]) = [time_min5_xref].[min5_period_start]
+			WHERE
+				DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
+				AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+				AND [samples] > 0  -- do not use imputed values
+				AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
+				AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
+			GROUP BY
+				CONVERT(DATE, [timestamp])
+				,DATEPART(MONTH, [timestamp])
+				,DATENAME(MONTH, [timestamp])
+				,[station]
+				,[time_min5_xref].' + @time_column + '),
+		[records_check] AS (
+			SELECT
+				' + @time_column + '
+				,COUNT([min5]) AS [n]
+			FROM
+				[pems].[time_min5_xref]
+			GROUP BY
+				' + @time_column + ')
+		SELECT
+			' + CONVERT(nvarchar, @year_filter) + ' AS [year]
+			,[month]
+			,[station]
+			,[tbl_day].' + @time_column + '
+			,SUM(1.0 * [metric] * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+			,SUM([tbl_day].[n]) AS [n]  -- total number of records used in computing metric values that make up the average metric
+			,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
+		FROM
+			[tbl_day]
+		INNER JOIN  -- only use records within each day that have full datasets
+			[records_check]
+		ON
+			[tbl_day].' + @time_column + ' = [records_check].' + @time_column + '
+			AND [tbl_day].[n] = [records_check].[n]
+		GROUP BY
+			[month_number]
+			,[month]
+			,[station]
+			,[tbl_day].' + @time_column
 
         -- execute dynamic SQL string
 	    EXECUTE (@sql)
@@ -2091,9 +2107,9 @@ DROP PROCEDURE  IF EXISTS [pems].[sp_agg_station_hour]
 GO
 
 CREATE PROCEDURE [pems].[sp_agg_station_hour]
-    @metric_column nvarchar(20),  -- column in [pems].[station_hour] to
+    @metric_column nvarchar(30),  -- column in [pems].[station_hour] to
     -- calculate average of, allows only [total_flow] and [average_speed]
-    @time_column nvarchar(max),  -- column in [pems].[time_min60_xref]
+    @time_column nvarchar(30),  -- column in [pems].[time_min60_xref]
     -- table used to aggregate station hour data to user-specified
     -- temporal resolution
     @year_filter integer -- year of data to calculate metric for
@@ -2125,7 +2141,8 @@ summary:   >
         [metric] = SUM([metric] * [n]) / SUM([n])
         [metric] = SUM([metric] * [samples]) / SUM([samples])
 revisions:
-    - None
+	- Gregor Schroeder; 5/15/2020; added summation to user-input time periods
+		for each day/date of data prior to taking the mean
 **/
 BEGIN
     IF (@metric_column NOT IN ('total_flow', 'average_speed'))
@@ -2138,35 +2155,67 @@ BEGIN
     END
     ELSE
     BEGIN
-        -- build dynamic SQL string
-	    DECLARE @sql nvarchar(max) = '
-        SELECT
-            ' + CONVERT(nvarchar, @year_filter) + ' AS [year]
-            ,DATENAME(MONTH, [timestamp]) AS [month]
-            ,[station]
-            ,[time_min60_xref].' + @time_column + '
-            ,SUM(1.0 * ' + @metric_column + ' * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
-            ,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records used in computing metric values that make up the average metric
-            ,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
-        FROM
-            [pems].[station_hour]
-        INNER JOIN
-            [pems].[time_min60_xref]
-        ON
-            DATEPART(HOUR, [station_hour].[timestamp]) + 1 = [time_min60_xref].[min60]
-        WHERE
-            DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
-            AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
-            AND [samples] > 0  -- do not use imputed values
-            AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
-            AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
-        GROUP BY
-            DATENAME(MONTH, [timestamp])
-            ,[station]
-            ,[time_min60_xref].' + @time_column
+		-- build dynamic SQL string
+		DECLARE @sql nvarchar(max) = '
+		with [tbl_day] AS (
+			SELECT
+				CONVERT(DATE, [timestamp]) AS [date]
+				,DATEPART(MONTH, [timestamp]) AS [month_number]
+				,DATENAME(MONTH, [timestamp]) AS [month]
+				,[station]
+				,[time_min60_xref].' + @time_column + '
+				,SUM(' + @metric_column + ') AS [metric]  -- metric aggregated to time periods of interest within the day
+				,SUM(CASE WHEN [samples] = 0 THEN 0 ELSE 1 END) AS [n]  -- total number of records aggregated to time periods of interest within the day
+				,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records aggregated to time periods of interest within the day
+			FROM
+				[pems].[station_hour]
+			INNER JOIN
+				[pems].[time_min60_xref]
+			ON
+				DATEPART(HOUR, [station_hour].[timestamp]) + 1 = [time_min60_xref].[min60]
+			WHERE
+				DATENAME(WEEKDAY, [timestamp]) NOT IN (''Saturday'', ''Sunday'')  -- remove weekends from the aggregation
+				AND CONVERT(DATE, [timestamp]) NOT IN (SELECT [date] FROM [pems].[holiday])  -- remove holidays from the aggregation
+				AND [samples] > 0  -- do not use imputed values
+				AND ' + @metric_column + ' IS NOT NULL  -- do not count records where metric was not measured
+				AND DATENAME(YEAR, [timestamp]) = ' + CONVERT(nvarchar, @year_filter) + '
+			GROUP BY
+				CONVERT(DATE, [timestamp])
+				,DATEPART(MONTH, [timestamp])
+				,DATENAME(MONTH, [timestamp])
+				,[station]
+				,[time_min60_xref].' + @time_column + '),
+		[records_check] AS (
+			SELECT
+				' + @time_column + '
+				,COUNT([min60]) AS [n]
+			FROM
+				[pems].[time_min60_xref]
+			GROUP BY
+				' + @time_column + ')
+		SELECT
+			' + CONVERT(nvarchar, @year_filter) + ' AS [year]
+			,[month]
+			,[station]
+			,[tbl_day].' + @time_column + '
+			,SUM(1.0 * [metric] * [samples]) / SUM([samples]) AS [metric]  -- metric weighted by number of samples used in computing each record
+			,SUM([tbl_day].[n]) AS [n]  -- total number of records used in computing metric values that make up the average metric
+			,SUM([samples]) AS [samples]  -- total number of samples received for all lanes across all records used to compute average metric
+		FROM
+			[tbl_day]
+		INNER JOIN  -- only use records within each day that have full datasets
+			[records_check]
+		ON
+			[tbl_day].' + @time_column + ' = [records_check].' + @time_column + '
+			AND [tbl_day].[n] = [records_check].[n]
+		GROUP BY
+			[month_number]
+			,[month]
+			,[station]
+			,[tbl_day].' + @time_column
 
-        -- execute dynamic SQL string
-	    EXECUTE (@sql)
+		-- execute dynamic SQL string
+		EXECUTE (@sql)
     END
 END
 GO
