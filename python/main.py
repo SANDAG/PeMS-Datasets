@@ -5,14 +5,10 @@ from zipfile import ZipFile
 
 
 # set SQL connection to location that contains the PeMS objects
-# Kerberos authentication issue requires use of a SQL login
-# instead of Windows Authentication in the SANDAG environment
-# create account when loading then remove
 conn = pyodbc.connect("DRIVER={ODBC Driver 17 for SQL Server};"
                       "SERVER=;"
                       "DATABASE=;"
-                      "UID=;"  # TODO: create SQL login see README
-                      "PWD=")  # TODO: create SQL login see README
+                      "Trusted_Connection=yes;")
 cursor = conn.cursor()
 
 # create mappings of PeMS data-set raw file names to PeMS objects

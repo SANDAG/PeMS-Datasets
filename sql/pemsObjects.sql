@@ -22,6 +22,11 @@ GO
 --DROP TABLE IF EXISTS [pems].[station_metadata]
 --DROP TABLE IF EXISTS [pems].[time_min5_xref]
 --DROP TABLE IF EXISTS [pems].[time_min60_xref]
+--DROP FUNCTION IF EXISTS [pems].[fn_sample_size]
+--DROP FUNCTION IF EXISTS [pems].[fn_agg_station_day]
+--DROP PROCEDURE IF EXISTS [pems].[sp_agg_station_aadt]
+--DROP PROCEDURE IF EXISTS [pems].[sp_agg_station_five_minute]
+--DROP PROCEDURE IF EXISTS [pems].[sp_agg_station_hour]
 --DROP SCHEMA IF EXISTS [pems]
 --GO
 
@@ -602,7 +607,7 @@ INSERT INTO [pems].[holiday] VALUES
     ('2009-12-29','Christmas','Residual'),
     ('2009-12-30','New Years','Residual'),
     ('2009-12-31','New Years','Residual')
-    INSERT INTO [pems].[holiday]
+    INSERT INTO [pems].[holiday] VALUES
     ('2010-01-01','New Years','Actual'),
     ('2010-01-04','New Years','Residual'),
     ('2010-01-15','Martin Luther King Jr. Day','Residual'),
