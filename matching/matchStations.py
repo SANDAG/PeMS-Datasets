@@ -21,7 +21,10 @@ The matching process is as follows:
 
 import geopandas as gpd
 import numpy as np
-from osgeo import ogr, osr
+from osgeo import ogr, osr  # ensure the GDAL_PATH environment variable for
+# the Python execution environment is set to ...\Library\share\gdal
+# this can be set either in the command prompt or in the Python IDE
+# this gdal folder is created when the conda virtual environment is created
 import os.path
 import pandas as pd
 import pyodbc
@@ -36,10 +39,9 @@ e00File = input("Enter path to hwycov.e00 file:")
 
 
 # load the PeMS station metadata from SQL as a GeoPandas DataFrame
-# TODO: Must specify Server and Database
 conn = pyodbc.connect("Driver={SQL Server};"
-                      "Server=;"
-                      "Database=;"
+                      "Server=;"  # TODO: specify server
+                      "Database=;"  # TODO: specify database
                       "Trusted_Connection=yes;")
 
 sql = ("SELECT [station], CONCAT(RTRIM([freeway]),"
@@ -49,8 +51,11 @@ sql = ("SELECT [station], CONCAT(RTRIM([freeway]),"
 
 stations = pd.read_sql_query(sql + pemsYear, conn)
 stations["geometry"] = [wkt.loads(x) for x in stations["geometry"]]
-stations = gpd.GeoDataFrame(stations, crs={"init": "epsg:4326"}, geometry="geometry")
-stations = stations.to_crs({"init": "epsg:2230"})
+stations = gpd.GeoDataFrame(stations, crs="EPSG:4326", geometry="geometry")
+stations = stations.to_crs("EPSG:2230")
+# following command may be necessary to fix conda install issues with pyproj
+# that result in error in to_crs function
+# pip install --force-reinstall pyproj
 
 
 # load the input highway coverage e00 file as a GeoPandas DataFrame
@@ -102,7 +107,7 @@ else:
 
     # convert list of freeway records to a GeoPandas DataFrame
     hwyCov = pd.DataFrame(records, columns=["hwyCovId", "hwyNameDir", "geometry"])
-    hwyCov = gpd.GeoDataFrame(hwyCov, crs={"init": "epsg:2230"}, geometry="geometry")
+    hwyCov = gpd.GeoDataFrame(hwyCov, crs="epsg:2230", geometry="geometry")
 
 
 # create dictionary of stations and their matched highway links
@@ -155,6 +160,7 @@ for key in matches:
         missingStations.append([key, np.nan, np.nan])
 missingStations = pd.DataFrame(missingStations, columns=["station", "hwyCovId", "distance"])
 resultDf = resultDf.append(missingStations, ignore_index=True)
+resultDf = resultDf.astype({"hwyCovId": "Int64"})
 
 
 # write the result to a csv file
