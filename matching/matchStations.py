@@ -8,10 +8,10 @@ DataFrames, runs matching process, and outputs exhaustive csv lookup of PeMS
 stations to highway network link ids.
 
 The matching process is as follows:
-    For each station, all highway network links that share the same freeway
-    name (5, 125, 805, etc...) and direction (N, S, E, W) that are less than
-    a pre-determined maximum allowable distance from the station are
-    considered.
+    For each ML/HV station, all highway network links with [ifc] = 1 that
+    share the same freeway name (5, 125, 805, etc...), direction (N, S, E, W),
+    and HOV/Non-HOV designation that are less than a pre-determined maximum
+    allowable distance from the station are considered.
 
     Within the initial matches, if a station's closest highway link is also the
     highway link's closest station that station-highway link pair is considered
@@ -46,8 +46,10 @@ conn = pyodbc.connect("Driver={SQL Server};"
 
 sql = ("SELECT [station], CONCAT(RTRIM([freeway]),"
        "RTRIM([direction])) AS [hwyNameDir],"
+       "CASE WHEN [type] = 'HV' THEN 1 ELSE 0 END AS [HOV],"
        "[shape].ToString() AS [geometry] FROM [pems].[station_metadata] "
-       "WHERE [type] = 'ML' AND [shape] IS NOT NULL AND YEAR(metadata_date) = ")
+       "WHERE [type] IN ('ML', 'HV') AND [shape] IS NOT NULL "
+       "AND YEAR(metadata_date) = ")
 
 stations = pd.read_sql_query(sql + pemsYear, conn)
 stations["geometry"] = [wkt.loads(x) for x in stations["geometry"]]
@@ -63,6 +65,7 @@ if not os.path.isfile(e00File):
     msg = "input hwycov.e00 file does not exist"
     raise ValueError(msg)
 else:
+
     # load e00 file and get the linestring layer
     f = ogr.GetDriverByName("AVCE00").Open(e00File)
     lyrARC = f.GetLayerByName('ARC')
@@ -94,6 +97,13 @@ else:
             # concatenate freeway number and direction
             hwyNameDir = hwyName + str(hwyDir)
 
+            # get HOV/Non-HOV designation via string search of name field
+            HOV = np.select(
+                    condlist=["HOV" in item.GetField("NM"),
+                              "HOV" not in item.GetField("NM")],
+                    choicelist=[1, 0]
+                )
+
             # re-project to epsg:2230
             transform = osr.CoordinateTransformation(lyrProjection, sandagProjection)
             geo = item.GetGeometryRef()
@@ -102,11 +112,12 @@ else:
             records.append(
                 [item.GetField("HWYCOV-ID"),
                  hwyNameDir,
+                 HOV,
                  wkt.loads(geo.ExportToWkt())]
             )
 
     # convert list of freeway records to a GeoPandas DataFrame
-    hwyCov = pd.DataFrame(records, columns=["hwyCovId", "hwyNameDir", "geometry"])
+    hwyCov = pd.DataFrame(records, columns=["hwyCovId", "hwyNameDir", "HOV", "geometry"])
     hwyCov = gpd.GeoDataFrame(hwyCov, crs="epsg:2230", geometry="geometry")
 
 
@@ -114,14 +125,15 @@ else:
 # initialize dictionary of matched links to stations
 matches = {x: [] for x in stations["station"]}
 # set the maximum allowable distance from station to network link
-distance = 150  # Jeff Yen manually identified best distance
+distance = 120  # Jeff Yen manually identified best distance
 
 # for each station record
 for vds in stations.itertuples():
     # loop through each highway link record
     for link in hwyCov.itertuples():
         # if station and link share freeway name and direction
-        if vds.hwyNameDir == link.hwyNameDir:
+        # and the station and link share same HOV/Non-HOV designation
+        if vds.hwyNameDir == link.hwyNameDir & vds.HOV == link.HOV:
             # calculate distance from station to highway link
             linkDistance = vds.geometry.distance(link.geometry)
             # if distance < maximum allowed
