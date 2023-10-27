@@ -1,0 +1,43 @@
+2023-01-01,New Years,Actual
+2023-01-02,New Years,Residual
+2023-01-15,Martin Luther King Jr. Day,Residual
+2023-01-16,Martin Luther King Jr. Day,Actual
+2023-01-17,Martin Luther King Jr. Day,Residual
+2023-02-19,Washingtons Birthday,Residual
+2023-02-20,Washingtons Birthday,Actual
+2023-02-21,Washingtons Birthday,Residual
+2023-03-31,Cesar Chavez Day,Actual
+2023-04-01,Cesar Chavez Day,Residual
+2023-04-02,Cesar Chavez Day,Residual
+2023-04-14,Good Friday,Actual
+2023-04-15,Good Friday,Residual
+2023-04-16,Good Friday,Residual
+2023-05-26,Memorial Day,Residual
+2023-05-29,Memorial Day,Actual
+2023-05-30,Memorial Day,Residual
+2023-06-30,Independence Day,Residual
+2023-07-01,Independence Day,Residual
+2023-07-02,Independence Day,Residual
+2023-07-03,Independence Day,Residual
+2023-07-04,Independence Day,Actual
+2023-07-05,Independence Day,Observed
+2023-09-01,Labor Day,Residual
+2023-09-04,Labor Day,Actual
+2023-09-05,Labor Day,Actual
+2023-10-06,Columbus Day,Residual
+2023-10-09,Columbus Day,Actual
+2023-10-10,Columbus Day,Residual
+2023-11-09,Veterans Day,Residual
+2023-11-10,Veterans Day,Actual
+2023-11-22,Thanksgiving,Residual
+2023-11-23,Thanksgiving,Actual
+2023-11-24,Day After Thanksgiving,Actual
+2023-12-22,Christmas Eve,Residual
+2023-12-23,Christmas Eve,Residual
+2023-12-24,Christmas Eve,Actual
+2023-12-25,Christmas,Actual
+2023-12-26,Christmas,Observed
+2023-12-27,Christmas,Residual
+2023-12-29,New Years,Residual
+2023-12-30,New Years,Residual
+2023-12-31,New Years,Residual
