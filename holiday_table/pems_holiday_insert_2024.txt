@@ -1,0 +1,39 @@
+2024-01-01,New Years,Actual
+2024-01-02,New Years,Residual
+2024-01-15,Martin Luther King Jr. Day,Actual
+2024-01-16,Martin Luther King Jr. Day,Residual
+2024-02-19,Washingtons Birthday,Actual
+2024-02-20,Washingtons Birthday,Residual
+2024-03-28,Good Friday,Residual
+2024-03-29,Good Friday,Actual
+2024-04-01,Cesar Chavez Day,Actual
+2024-04-02,Cesar Chavez Day,Residual
+2024-05-27,Memorial Day,Actual
+2024-05-28,Memorial Day,Residual
+2024-06-18,Juneteenth,Residual
+2024-06-19,Juneteenth,Actual
+2024-06-20,Juneteenth,Residual
+2024-06-30,Independence Day,Residual
+2024-07-01,Independence Day,Residual
+2024-07-02,Independence Day,Residual
+2024-07-03,Independence Day,Residual
+2024-07-04,Independence Day,Actual
+2024-07-05,Independence Day,Observed
+2024-09-02,Labor Day,Actual
+2024-09-03,Labor Day,Residual
+2024-10-14,Columbus Day,Actual
+2024-10-15,Columbus Day,Residual
+2024-11-11,Veterans Day,Residual
+2024-11-12,Veterans Day,Actual
+2024-11-25,Thanksgiving,Residual
+2024-11-26,Thanksgiving,Residual
+2024-11-27,Thanksgiving,Residual
+2024-11-28,Thanksgiving,Actual
+2024-11-29,Day After Thanksgiving,Actual
+2024-12-23,Christmas Eve,Residual
+2024-12-24,Christmas Eve,Actual
+2024-12-25,Christmas,Actual
+2024-12-26,Christmas,Observed
+2024-12-27,Christmas,Residual
+2024-12-30,New Years,Residual
+2024-12-31,New Years,Residual
