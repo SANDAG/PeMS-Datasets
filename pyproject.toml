@@ -5,5 +5,6 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "python-dotenv>=1.2.2",
     "selenium>=4.44.0",
 ]
