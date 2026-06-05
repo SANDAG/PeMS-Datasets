@@ -25,6 +25,7 @@ import pathlib
 import shutil
 import sys
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 from selenium import webdriver
@@ -150,8 +151,7 @@ while True:
                     continue
 
                 # mkdir if needed
-                if not os.path.exists(zip_dir):
-                    os.mkdir(zip_dir)
+                Path(zip_dir).mkdir(exist_ok=True, parents=True)
 
                 print("Looking for element_name: {}".format(element_name))
                 try:
