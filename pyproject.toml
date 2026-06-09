@@ -5,6 +5,9 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "ipykernel>=7.2.0",
+    "polars>=1.41.2",
     "python-dotenv>=1.2.2",
     "selenium>=4.44.0",
+    "tqdm>=4.68.2",
 ]
