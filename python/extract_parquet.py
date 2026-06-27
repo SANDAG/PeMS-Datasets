@@ -113,7 +113,7 @@ STATION_DAY_READ_SCHEMA = pl.Schema(
 
 
 def extract_station_5min(txt_path: Path) -> pl.DataFrame:
-    station_5minute = pl.read_csv(  # pyright: ignore[reportUnknownMemberType]
+    station_5minute = pl.read_csv(
         txt_path,
         schema=STATION_5MIN_READ_SCHEMA,
         has_header=False,
@@ -122,7 +122,7 @@ def extract_station_5min(txt_path: Path) -> pl.DataFrame:
 
 
 def extract_station_hour(txt_path: Path) -> pl.DataFrame:
-    station_hour = pl.read_csv(  # pyright: ignore[reportUnknownMemberType]
+    station_hour = pl.read_csv(
         txt_path,
         schema=STATION_HOUR_READ_SCHEMA,
         has_header=False,
@@ -131,7 +131,7 @@ def extract_station_hour(txt_path: Path) -> pl.DataFrame:
 
 
 def extract_station_day(txt_path: Path) -> pl.DataFrame:
-    station_day = pl.read_csv(  # pyright: ignore[reportUnknownMemberType]
+    station_day = pl.read_csv(
         txt_path,
         schema=STATION_DAY_READ_SCHEMA,
         has_header=False,
@@ -142,26 +142,28 @@ def extract_station_day(txt_path: Path) -> pl.DataFrame:
 if __name__ == "__main__":
     # TODO: Base hardcoded loop on some kind of config/environment variable
     for year in [2025, 2026]:
-        for dataset in ["station_5min", "station_hour", "station_day"]:
-            if not Path(f"./data/pems/parquet/{year}/{dataset}").exists():
-                Path(f"./data/pems/parquet/{year}/{dataset}").mkdir(
-                    parents=True, exist_ok=True
-                )
-
         txt_paths = list(Path(f"./data/pems/txt/{year}/station_5min").iterdir())
         for txt_path in tqdm(txt_paths):
             df = extract_station_5min(txt_path)
             parquet_name = txt_path.stem + ".parquet"
-            df.write_parquet(f"./data/pems/parquet/{year}/station_5min/{parquet_name}")
+            dir_ = Path(
+                f"./data/pems/parquet/station_5min/{year}/{df['timestamp'].dt.month().first():02}/"
+            )
+            dir_.mkdir(parents=True, exist_ok=True)
+            df.write_parquet(dir_ / f"{parquet_name}")
 
         txt_paths = list(Path(f"./data/pems/txt/{year}/station_hour").iterdir())
         for txt_path in tqdm(txt_paths):
             df = extract_station_hour(txt_path)
             parquet_name = txt_path.stem + ".parquet"
-            df.write_parquet(f"./data/pems/parquet/{year}/station_hour/{parquet_name}")
+            dir_ = Path(f"./data/pems/parquet/station_hour/{year}/")
+            dir_.mkdir(parents=True, exist_ok=True)
+            df.write_parquet(dir_ / f"{parquet_name}")
 
         txt_paths = list(Path(f"./data/pems/txt/{year}/station_day").iterdir())
         for txt_path in tqdm(txt_paths):
             df = extract_station_day(txt_path)
             parquet_name = txt_path.stem + ".parquet"
-            df.write_parquet(f"./data/pems/parquet/{year}/station_day/{parquet_name}")
+            dir_ = Path(f"./data/pems/parquet/station_day/{year}/")
+            dir_.mkdir(parents=True, exist_ok=True)
+            df.write_parquet(dir_ / f"{parquet_name}")
