@@ -142,17 +142,28 @@ def extract_station_day(txt_path: Path) -> pl.DataFrame:
 if __name__ == "__main__":
     # TODO: Base hardcoded loop on some kind of config/environment variable
     for year in [2025, 2026]:
-        txt_paths = list(Path(f"./data/pems/txt/{year}/station_5min").iterdir())
-        for txt_path in tqdm(txt_paths):
-            df = extract_station_5min(txt_path)
-            parquet_name = txt_path.stem + ".parquet"
-            dir_ = Path(
-                f"./data/pems/parquet/station_5min/{year}/{df['timestamp'].dt.month().first():02}/"
-            )
-            dir_.mkdir(parents=True, exist_ok=True)
-            df.write_parquet(dir_ / f"{parquet_name}")
+        for month in range(1, 13):
+            txt_paths = [
+                path
+                for path in Path(
+                    f"./data/pems/txt/station_5min/{year}/{month:02}/"
+                ).iterdir()
+                if path.suffix == ".txt"
+            ]
+            for txt_path in tqdm(txt_paths):
+                df = extract_station_5min(txt_path)
+                parquet_name = txt_path.stem + ".parquet"
+                dir_ = Path(
+                    f"./data/pems/parquet/station_5min/{year}/{df['timestamp'].dt.month().first():02}/"
+                )
+                dir_.mkdir(parents=True, exist_ok=True)
+                df.write_parquet(dir_ / f"{parquet_name}")
 
-        txt_paths = list(Path(f"./data/pems/txt/{year}/station_hour").iterdir())
+        txt_paths = [
+            path
+            for path in Path(f"./data/pems/txt/station_hour/{year}").iterdir()
+            if path.suffix == ".txt"
+        ]
         for txt_path in tqdm(txt_paths):
             df = extract_station_hour(txt_path)
             parquet_name = txt_path.stem + ".parquet"
@@ -160,7 +171,11 @@ if __name__ == "__main__":
             dir_.mkdir(parents=True, exist_ok=True)
             df.write_parquet(dir_ / f"{parquet_name}")
 
-        txt_paths = list(Path(f"./data/pems/txt/{year}/station_day").iterdir())
+        txt_paths = [
+            path
+            for path in Path(f"./data/pems/txt/station_day/{year}").iterdir()
+            if path.suffix == ".txt"
+        ]
         for txt_path in tqdm(txt_paths):
             df = extract_station_day(txt_path)
             parquet_name = txt_path.stem + ".parquet"

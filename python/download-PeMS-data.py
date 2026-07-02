@@ -36,7 +36,7 @@ load_dotenv()
 
 
 # data files are saved here, in subfolder '[yyyy]\original zipped'
-DESTINATION_DIR = pathlib.Path(".\\data\\")
+DESTINATION_DIR = pathlib.Path(".\\data\\pems\\txt\\")
 # data files are downloaded here but then moved into the DESTINATION_DIR
 DOWNLOADS_DIR = pathlib.Path(f"C:\\Users\\{os.getenv('USERNAME')}\\Downloads")
 
@@ -143,7 +143,15 @@ while True:
                     )
 
                 # first check if file is already there
-                unzip_dir = DESTINATION_DIR / year
+                unzip_dir = (
+                    DESTINATION_DIR
+                    / pems_mode
+                    / (
+                        "{:d}/{:02d}".format(int(year), month)
+                        if pems_mode == "station_5min"
+                        else year
+                    )
+                )
                 zip_dir = unzip_dir / "original_zipped"
                 zip_file = zip_dir / element_name
                 if os.path.exists(zip_file):
