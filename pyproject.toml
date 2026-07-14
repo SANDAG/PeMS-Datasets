@@ -9,5 +9,6 @@ dependencies = [
     "polars>=1.41.2",
     "python-dotenv>=1.2.2",
     "selenium>=4.44.0",
+    "toml>=0.10.2",
     "tqdm>=4.68.2",
 ]

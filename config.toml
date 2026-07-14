@@ -1,0 +1,12 @@
+# list[int]
+pems_years = [
+    2026,
+    2025,
+]
+
+# list[station_day | station_hour | station_5min]
+pems_modes = [
+    "station_day",
+    "station_hour",
+    "station_5min",
+]
