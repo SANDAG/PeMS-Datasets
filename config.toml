@@ -4,7 +4,7 @@ pems_years = [
     2025,
 ]
 
-# list[station_day | station_hour | station_5min]
+# list["station_day" | "station_hour" | "station_5min"]
 pems_modes = [
     "station_day",
     "station_hour",

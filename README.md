@@ -1,20 +1,18 @@
 # PeMS-Datasets
-This repository houses all objects associated with the storage, loading, and summarization of data-sets from the Caltrans Performance Measurement System (PeMS).
+This repository houses all objects associated with the downloading and extracting of datasets from the Caltrans Performance Measurement System (PeMS).
 
-## PeMS data-sets location and acquisition
-PeMS data-sets come from the PeMS Data Clearinghouse located at http://pems.dot.ca.gov/. To access the PeMS Data Clearinghouse it is necessary to create a user-name and password.
+## Python Environment
+Dependencies required for running code in this repository are located in `pyproject.toml` (and additionall exported into a `requirements.txt` file).  It is recommended to use a package manager like [uv](https://docs.astral.sh/uv/) to setup an environment (by running `uv sync` with uv installed), but the "requirements.txt" could be passed to either pip or conda instead.
 
-To download the data-sets it is recommended to use a batch downloader browser extension as Caltrans purposefully disallows the use of programmatic tools to access the data-sets. Once the data-sets of interest are downloaded ensure there are no duplicate files or empty files as this is not an uncommon occurrence in the Data Clearinghouse.
+## PeMS and Config
+PeMS data-sets come from the PeMS Data Clearinghouse located at http://pems.dot.ca.gov/. To access the PeMS Data Clearinghouse it is necessary to create a user-name and password.  To use the scripts included in this repository, these credentials should be saved in a filed named `.env` at the root of the cloned directory.  An example file (`.env.example`) is include for reference. **Note: a file with real credentials should never be commited to this repository.**
 
-## Loading PeMS data-sets
-The final destination of the PeMS data-sets is an internal SQL server instance specified in the Python file main.py of the project python folder. 
+Additional configuration should be set in the `config.toml`.  Currently, there are two parameters used for configuration:
+1. `pems_years: list[int]`: Lists the years of data to download from the PeMS Data Clearinghouse.
+2. `pems_modes: list["station_day" | "station_hour" | "station_5min"]`: Lists the different download "modes" to download from the PeMS Data Clearinghouse.
 
-Once the data-sets are downloaded, placed in the project data folder, and ready to be loaded into the SQL server instance; ensure the PeMS SQL objects created by the pemsObjects.sql file in the project sql folder exist in the target database of interest. If they do not exist, or it is wished to completely start a new, run the pemsObjects.sql in the target database of interest to drop and create all PeMS related SQL objects.
+## Downloading PeMS Data
+To download the datasets, run the [`download-PeMS-data.py`](download-PeMS-data.py) script.  It will use an automated Chrome browser to log in to PeMS and download all configured year/mode.  This process should take several minutes for each given dataset, with `station_5min` data taking much longer than other modes.  It is expected for the browser to close and reopen for each year and mode defined in the config.  Files will download to `./data/pems/txt/{pems_mode}/{pems_year}/[{pems_month (for station_5min only)}]/d11_text_{pems_mode}_{date}.txt`.
 
-Create the Python interpreter from the provided environment.yml file located in the Python folder of the project. Set the interpreter as the default Python interpreter associated with this project. Run the Python file main.py from the project python folder. It will sequentially load the  data-sets of interest from the data folder, extracting the necessary txt files from the compressed gz files and zip archives, and load them directly into the SQL database of interest specified in the Python file main.py.
-
-## Summarizing PeMS data-sets
-Stored procedures within the database containing the PeMS data-sets provide yearly aggregations of the PeMS data-sets at the station level for user-specified time resolutions. For more information, refer to this GitHub's Wiki page for each PeMS data-set.
-
-## Matching PeMS stations to SANDAG highway network
-A Python micro-service is included in the project matching folder that matches a user-specified year of PeMS station metadata loaded into an internal SQL server instance with a user-specified SANDAG highway network e00 file. The Python script can be run outside of the project folder structure and includes a separate environment.yml file from the main project.
+## Extracting PeMS Data
+To extract the raw PeMS .txt files into .parquet files, run the [`./python/extract_parquet.py`](./python/extract_parquet.py) script. Each downloaded .txt file saved to [`./data/pems/txt`](./data/pems/txt) will be extracted to [`./data/pems/parquet`](./data/pems/parquet). This process should take sevearl minutes for each conifugred year/mode.
