@@ -25,8 +25,10 @@ import pathlib
 import shutil
 import sys
 import time
+from itertools import product
 from pathlib import Path
 
+import toml
 from dotenv import load_dotenv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -36,7 +38,7 @@ load_dotenv()
 
 
 # data files are saved here, in subfolder '[yyyy]\original zipped'
-DESTINATION_DIR = pathlib.Path(".\\data\\")
+DESTINATION_DIR = pathlib.Path(".\\data\\pems\\txt\\")
 # data files are downloaded here but then moved into the DESTINATION_DIR
 DOWNLOADS_DIR = pathlib.Path(f"C:\\Users\\{os.getenv('USERNAME')}\\Downloads")
 
@@ -44,30 +46,32 @@ DOWNLOADS_DIR = pathlib.Path(f"C:\\Users\\{os.getenv('USERNAME')}\\Downloads")
 pems_username = os.getenv("PEMS_USERNAME")
 pems_password = os.getenv("PEMS_PASSWORD")
 
+config = toml.load("./config.toml")
+pems_years: list[int] = config["pems_years"]  # pyright: ignore[reportAny]
+pems_modes: list[str] = config["pems_modes"]  # pyright: ignore[reportAny]
+
 print(
     "PeMS username={} password=***".format(
         pems_username,
     )
 )
 
-# 'Chrome driver needed for this script.
-# 'download and enter path below
-# 'initialize the Chrome driver
-driver = webdriver.Chrome()
-# load the Clearinghouse page, which will require login
-driver.get("https://pems.dot.ca.gov/?dnode=Clearinghouse")
 
-driver.find_element("id", "username").send_keys(pems_username)
-driver.find_element("id", "password").send_keys(pems_password)
-driver.find_element("name", "login").click()
-# wait for login
-time.sleep(3)
+for pems_year, pems_mode in product(pems_years, pems_modes):
+    print(f"Downloading {pems_mode} data for {pems_year}...")
+    # 'Chrome driver needed for this script.
+    # 'download and enter path below
+    # 'initialize the Chrome driver
+    driver = webdriver.Chrome()
+    # load the Clearinghouse page, which will require login
+    driver.get("https://pems.dot.ca.gov/?dnode=Clearinghouse")
 
-while True:
-    pems_mode = input(
-        "What type of clearinghouse data do you want to download?  [station_5min, station_day, station_hour, q=quit]: "
-    )
-    print("pems_mode={}".format(pems_mode))
+    driver.find_element("id", "username").send_keys(pems_username)
+    driver.find_element("id", "password").send_keys(pems_password)
+    driver.find_element("name", "login").click()
+    # wait for login
+    time.sleep(3)
+
     if pems_mode == "q":
         sys.exit()
 
@@ -88,9 +92,7 @@ while True:
     driver.find_element("name", "submit").click()
     time.sleep(3)
 
-    # choose years for all
-    years_input = input("Enter a comma delimited set of years: ")
-    years = years_input.split(",")
+    years = pems_years
 
     year_tds = driver.find_elements(By.CLASS_NAME, value="widgetYear")
 
@@ -141,9 +143,16 @@ while True:
                             mday,
                         )
                     )
-
                 # first check if file is already there
-                unzip_dir = DESTINATION_DIR / year
+                unzip_dir = (
+                    DESTINATION_DIR
+                    / pems_mode
+                    / (
+                        "{:d}/{:02d}".format(year, month)
+                        if pems_mode == "station_5min"
+                        else str(year)
+                    )
+                )
                 zip_dir = unzip_dir / "original_zipped"
                 zip_file = zip_dir / element_name
                 if os.path.exists(zip_file):

@@ -19,18 +19,18 @@ The matching process is as follows:
     the process is repeated until no initial matches are left.
 """
 
-import geopandas as gpd
-import numpy as np
-from osgeo import ogr, osr  # ensure the GDAL_PATH environment variable for
 # the Python execution environment is set to ...\Library\share\gdal
 # this can be set either in the command prompt or in the Python IDE
 # this gdal folder is created when the conda virtual environment is created
 import os.path
+import re
+
+import geopandas as gpd
+import numpy as np
 import pandas as pd
 import pyodbc
-import re
+from osgeo import ogr, osr  # ensure the GDAL_PATH environment variable for
 from shapely import wkt
-
 
 # user inputs year of PeMS station metadata to use
 pemsYear = input("Enter year of PeMS station metadata to use:")
@@ -39,17 +39,21 @@ e00File = input("Enter path to hwycov.e00 file:")
 
 
 # load the PeMS station metadata from SQL as a GeoPandas DataFrame
-conn = pyodbc.connect("Driver={SQL Server};"
-                      "Server=;"  # TODO: specify server
-                      "Database=;"  # TODO: specify database
-                      "Trusted_Connection=yes;")
+conn = pyodbc.connect(
+    "Driver={SQL Server};"
+    "Server=;"  # TODO: specify server
+    "Database=;"  # TODO: specify database
+    "Trusted_Connection=yes;"
+)
 
-sql = ("SELECT [station], CONCAT(RTRIM([freeway]),"
-       "RTRIM([direction])) AS [hwyNameDir],"
-       "CASE WHEN [type] = 'HV' THEN 1 ELSE 0 END AS [HOV],"
-       "[shape].ToString() AS [geometry] FROM [pems].[station_metadata] "
-       "WHERE [type] IN ('ML', 'HV') AND [shape] IS NOT NULL "
-       "AND YEAR(metadata_date) = ")
+sql = (
+    "SELECT [station], CONCAT(RTRIM([freeway]),"
+    "RTRIM([direction])) AS [hwyNameDir],"
+    "CASE WHEN [type] = 'HV' THEN 1 ELSE 0 END AS [HOV],"
+    "[shape].ToString() AS [geometry] FROM [pems].[station_metadata] "
+    "WHERE [type] IN ('ML', 'HV') AND [shape] IS NOT NULL "
+    "AND YEAR(metadata_date) = "
+)
 
 stations = pd.read_sql_query(sql + pemsYear, conn)
 stations["geometry"] = [wkt.loads(x) for x in stations["geometry"]]
@@ -65,10 +69,9 @@ if not os.path.isfile(e00File):
     msg = "input hwycov.e00 file does not exist"
     raise ValueError(msg)
 else:
-
     # load e00 file and get the linestring layer
     f = ogr.GetDriverByName("AVCE00").Open(e00File)
-    lyrARC = f.GetLayerByName('ARC')
+    lyrARC = f.GetLayerByName("ARC")
 
     # store layer projection and SANDAG standard EPSG:2230 projection
     lyrProjection = lyrARC.GetSpatialRef()
@@ -86,12 +89,14 @@ else:
 
             # get direction from NM field
             hwyDir = np.select(
-                condlist=["NB" in item.GetField("NM"),
-                          "SB" in item.GetField("NM"),
-                          "EB" in item.GetField("NM"),
-                          "WB" in item.GetField("NM")],
+                condlist=[
+                    "NB" in item.GetField("NM"),
+                    "SB" in item.GetField("NM"),
+                    "EB" in item.GetField("NM"),
+                    "WB" in item.GetField("NM"),
+                ],
                 choicelist=["N", "S", "E", "W"],
-                default=np.nan
+                default=np.nan,
             )
 
             # concatenate freeway number and direction
@@ -99,10 +104,12 @@ else:
 
             # get HOV/Non-HOV designation via string search of name field
             HOV = np.select(
-                    condlist=["HOV" in item.GetField("NM"),
-                              "HOV" not in item.GetField("NM")],
-                    choicelist=[1, 0]
-                )
+                condlist=[
+                    "HOV" in item.GetField("NM"),
+                    "HOV" not in item.GetField("NM"),
+                ],
+                choicelist=[1, 0],
+            )
 
             # re-project to epsg:2230
             transform = osr.CoordinateTransformation(lyrProjection, sandagProjection)
@@ -110,14 +117,18 @@ else:
             geo.Transform(transform)
 
             records.append(
-                [item.GetField("HWYCOV-ID"),
-                 hwyNameDir,
-                 HOV,
-                 wkt.loads(geo.ExportToWkt())]
+                [
+                    item.GetField("HWYCOV-ID"),
+                    hwyNameDir,
+                    HOV,
+                    wkt.loads(geo.ExportToWkt()),
+                ]
             )
 
     # convert list of freeway records to a GeoPandas DataFrame
-    hwyCov = pd.DataFrame(records, columns=["hwyCovId", "hwyNameDir", "HOV", "geometry"])
+    hwyCov = pd.DataFrame(
+        records, columns=["hwyCovId", "hwyNameDir", "HOV", "geometry"]
+    )
     hwyCov = gpd.GeoDataFrame(hwyCov, crs="epsg:2230", geometry="geometry")
 
 
@@ -162,20 +173,22 @@ while len(matchesDf.index) > 0:
     minStations = matchesDf.loc[matchesDf.groupby("station")["distance"].idxmin()]
     minHwyCovIds = matchesDf.loc[matchesDf.groupby("hwyCovId")["distance"].idxmin()]
     resultDf = resultDf.append(minStations.merge(minHwyCovIds), ignore_index=True)
-    matchesDf = matchesDf[(~matchesDf.station.isin(resultDf.station)) &
-                          (~matchesDf.hwyCovId.isin(resultDf.hwyCovId))]
+    matchesDf = matchesDf[
+        (~matchesDf.station.isin(resultDf.station))
+        & (~matchesDf.hwyCovId.isin(resultDf.hwyCovId))
+    ]
 
 # append stations without matched highway links to the result DataFrame
 missingStations = []
 for key in matches:
     if key not in resultDf.station.values:
         missingStations.append([key, np.nan, np.nan])
-missingStations = pd.DataFrame(missingStations, columns=["station", "hwyCovId", "distance"])
+missingStations = pd.DataFrame(
+    missingStations, columns=["station", "hwyCovId", "distance"]
+)
 resultDf = resultDf.append(missingStations, ignore_index=True)
 resultDf = resultDf.astype({"hwyCovId": "Int64"})
 
 
 # write the result to a csv file
-resultDf.to_csv("match.csv",
-                columns=["station", "hwyCovId"],
-                index=False)
+resultDf.to_csv("match.csv", columns=["station", "hwyCovId"], index=False)

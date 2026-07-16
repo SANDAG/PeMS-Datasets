@@ -1,12 +1,12 @@
-import re
-import os
 import gzip
+import os
+import re
+from datetime import datetime
+from zipfile import ZipFile
+
+import pandas as pd
 import pyodbc
 import sqlalchemy
-import pandas as pd
-import geopandas as gpd
-from zipfile import ZipFile
-from datetime import datetime
 
 # TODO: set SQL connection to location that contains the PeMS objects
 server = "DDAMWSQL16.sandag.org"
@@ -22,10 +22,7 @@ engine = sqlalchemy.create_engine(
 
 # set pyodbc connection
 conn = pyodbc.connect(
-    "DRIVER={SQL Server};"
-    f"SERVER={server};"
-    f"DATABASE={database};"
-    "Trusted_Connection=yes;"
+    f"DRIVER={{SQL Server}};SERVER={server};DATABASE={database};Trusted_Connection=yes;"
 )
 cursor = conn.cursor()
 
